@@ -44,12 +44,11 @@ Analyse your posture with python OpenCV and get notified by chickens screaming a
    ```bash
    python posture_alert.py
 
-
 ### Mac
 
 1. **Install Python**
 
-   DPython 3 comes pre-installed on most Macs. If not, download it from the [official website](https://www.python.org/downloads/mac-osx/).
+   Python 3 comes pre-installed on most Macs. If not, download it from the [official website](https://www.python.org/downloads/mac-osx/).
 
 2. **Open Command Prompt**
 
@@ -70,10 +69,9 @@ Analyse your posture with python OpenCV and get notified by chickens screaming a
    ```bash
    python3 posture_alert.py
 
-
 ### Linux
 
-1. **If you use linux you already know all the steps**
+   You should be able to figure it out...
 
 
 ## How It Works

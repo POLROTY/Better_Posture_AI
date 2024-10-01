@@ -10,7 +10,10 @@ from pathlib import Path  # Use pathlib for cross-platform paths
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, min_tracking_confidence=0.5)
-cap = cv2.VideoCapture(1)
+
+# Change this to a different number if you have multiple cameras
+# (0) usualy the main camera (1) if you have a second camera plugged in or REAR/FRONT cams
+cap = cv2.VideoCapture(0)
 
 # Initialize calibration variables
 calibration_frames = 0

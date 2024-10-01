@@ -5,7 +5,7 @@ import pygame
 
 # Initialize Pygame mixer for playing sound
 pygame.mixer.init()
-alert_sound = pygame.mixer.Sound("file.mp3")
+alert_sound = pygame.mixer.Sound("chickens.mp3")
 
 # Mediapipe pose class
 mp_drawing = mp.solutions.drawing_utils

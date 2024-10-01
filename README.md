@@ -32,7 +32,7 @@ Analyse your posture with python OpenCV and get notified by chickens screaming a
 3. **Install Required Libraries**
 
    ```bash
-   pip install opencv-python mediapipe pygame
+   pip install opencv-python mediapipe numpy playsound
 
 4. **Download the files**
 
@@ -43,6 +43,16 @@ Analyse your posture with python OpenCV and get notified by chickens screaming a
    Navigate to directory and run
    ```bash
    python posture_alert.py
+
+6. **Follow The On Screen Calibration Instructions**
+
+   -The script will calibrate for the first few seconds.
+   -Maintain a good posture during calibration.
+   -After calibration, the script will monitor your posture in real-time.
+
+7. **Exit the Script**
+
+   Press `q` on your keyboard to exit
 
 ### Mac
 
@@ -57,7 +67,7 @@ Analyse your posture with python OpenCV and get notified by chickens screaming a
 3. **Install Required Libraries**
 
    ```bash
-   pip3 install opencv-python mediapipe pygame
+   pip3 install opencv-python mediapipe numpy playsound
 
 4. **Download the files**
 
@@ -68,6 +78,16 @@ Analyse your posture with python OpenCV and get notified by chickens screaming a
    Navigate to directory and run
    ```bash
    python3 posture_alert.py
+
+6. **Follow The On Screen Calibration Instructions**
+
+   -The script will calibrate for the first few seconds.
+   -Maintain a good posture during calibration.
+   -After calibration, the script will monitor your posture in real-time.
+
+7. **Exit the Script**
+
+   Press `q` on your keyboard to exit
 
 ### Linux
 

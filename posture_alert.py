@@ -12,13 +12,12 @@ mp_drawing = mp.solutions.drawing_utils
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
 # Change this to a different number if you have multiple cameras
-# (0) usualy the main camera (1) if you have a second camera plugged in or REAR/FRONT cams
 cap = cv2.VideoCapture(0)
 
 # Initialize calibration variables
 calibration_frames = 0
-calibration_shoulder_angles = []
 calibration_neck_angles = []
+calibration_shoulder_angles = []
 is_calibrated = False
 
 # Initialize alert variables
@@ -33,15 +32,13 @@ sound_file = current_dir / 'chickens.mp3'  # Replace with the correct file name
 if not sound_file.exists():
     raise FileNotFoundError(f"Sound file not found: {sound_file}")
 
-
-
 # Function to calculate angle between three points
 def calculate_angle(a, b, c):
     a = np.array(a)  # First point (e.g., ear)
     b = np.array(b)  # Mid point (e.g., shoulder)
-    c = np.array(c)  # Reference point (e.g., horizontal line from shoulder)
+    c = np.array(c)  # Reference point (e.g., vertical line from shoulder)
 
-    radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
+    radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
     angle = np.abs(radians * 180.0 / np.pi)
 
     if angle > 180.0:
@@ -69,8 +66,7 @@ while cap.isOpened():
     if results.pose_landmarks:
         landmarks = results.pose_landmarks.landmark
 
-        # STEP 2: Pose Detection
-        # Extract key body landmarks
+        # Determine which posture type to evaluate based on visible landmarks
         left_shoulder = (int(landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x * frame.shape[1]),
                          int(landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y * frame.shape[0]))
         right_shoulder = (int(landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x * frame.shape[1]),
@@ -80,54 +76,101 @@ while cap.isOpened():
         right_ear = (int(landmarks[mp_pose.PoseLandmark.RIGHT_EAR.value].x * frame.shape[1]),
                      int(landmarks[mp_pose.PoseLandmark.RIGHT_EAR.value].y * frame.shape[0]))
 
-        # STEP 3: Angle Calculation
-        # Calculate shoulder angle (line between shoulders vs. horizontal)
-        shoulder_midpoint = ((left_shoulder[0] + right_shoulder[0]) // 2, (left_shoulder[1] + right_shoulder[1]) // 2)
-        horizontal_point = (shoulder_midpoint[0] + 100, shoulder_midpoint[1])  # Point to the right on the horizontal line
-        shoulder_angle = calculate_angle(left_shoulder, shoulder_midpoint, horizontal_point)
+        # Identify viewing angle (front, back, side)
+        if landmarks[mp_pose.PoseLandmark.NOSE.value].visibility > 0.5:
+            view = 'front'
+        elif landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].visibility > 0.5 and landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].visibility > 0.5:
+            view = 'back'
+        elif landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].visibility > 0.5:
+            view = 'left_side'
+        elif landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].visibility > 0.5:
+            view = 'right_side'
+        else:
+            view = 'unknown'
 
-        # Calculate neck angle (ear-shoulder vs. vertical)
-        vertical_point = (left_shoulder[0], left_shoulder[1] - 100)  # Point above the shoulder
-        neck_angle = calculate_angle(left_ear, left_shoulder, vertical_point)
+        # Calculate relevant angles based on view
+        if view == 'front':
+            # Calculate shoulder alignment (left to right shoulder horizontal)
+            horizontal_point = (right_shoulder[0], left_shoulder[1])
+            shoulder_angle = calculate_angle(left_shoulder, right_shoulder, horizontal_point)
 
-        # STEP 1: Calibration
-        if not is_calibrated and calibration_frames < 30:
-            calibration_shoulder_angles.append(shoulder_angle)
-            calibration_neck_angles.append(neck_angle)
-            calibration_frames += 1
-            cv2.putText(frame, f"Calibrating... {calibration_frames}/30", (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
-        elif not is_calibrated:
-            shoulder_threshold = np.mean(calibration_shoulder_angles) + 5  # Adjust as needed
-            neck_threshold = np.mean(calibration_neck_angles) - 5  # Adjust as needed
-            is_calibrated = True
-            print(f"Calibration complete. Shoulder threshold: {shoulder_threshold:.1f}, Neck threshold: {neck_threshold:.1f}")
+            # Calibration for front view
+            if not is_calibrated and calibration_frames < 30:
+                calibration_shoulder_angles.append(shoulder_angle)
+                calibration_frames += 1
+                cv2.putText(frame, f"Calibrating... {calibration_frames}/30", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
+            elif not is_calibrated:
+                shoulder_threshold = np.mean(calibration_shoulder_angles) + (np.std(calibration_shoulder_angles) * 1.5)  # Adaptive threshold
+                is_calibrated = True
+                print(f"Calibration complete. Shoulder threshold: {shoulder_threshold:.1f}")
 
-        # Draw skeleton and angles
-        mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-        draw_angle(frame, left_shoulder, shoulder_midpoint, horizontal_point, shoulder_angle, (255, 0, 0))
-        draw_angle(frame, left_ear, left_shoulder, vertical_point, neck_angle, (0, 255, 0))
+            # Draw angles and give feedback
+            draw_angle(frame, left_shoulder, right_shoulder, horizontal_point, shoulder_angle, (255, 0, 0))
 
-        # STEP 4: Feedback
-        if is_calibrated:
-            current_time = time.time()
-            if shoulder_angle > shoulder_threshold or neck_angle < neck_threshold:
-                status = "Poor Posture"
-                color = (0, 0, 255)  # Red
-                if current_time - last_alert_time > alert_cooldown:
-                    print("Poor posture detected! Please adjust your posture.")
-                    if os.path.exists(sound_file):
-                        playsound(sound_file)
-                    last_alert_time = current_time
+            # Feedback for front view
+            if is_calibrated:
+                current_time = time.time()
+                if shoulder_angle > shoulder_threshold:
+                    status = "Poor Posture"
+                    color = (0, 0, 255)  # Red
+                    if current_time - last_alert_time > alert_cooldown:
+                        print("Poor posture detected! Please adjust your posture.")
+                        if os.path.exists(sound_file):
+                            playsound(sound_file)
+                        last_alert_time = current_time
+                else:
+                    status = "Good Posture"
+                    color = (0, 255, 0)  # Green
+
+                cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+                cv2.putText(frame, f"Shoulder Angle: {shoulder_angle:.1f}/{shoulder_threshold:.1f}", (10, 60),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
+        elif view in ['left_side', 'right_side']:
+            # Calculate neck angle (ear-shoulder vs. vertical line from shoulder)
+            if view == 'left_side':
+                ear = left_ear
+                shoulder = left_shoulder
             else:
-                status = "Good Posture"
-                color = (0, 255, 0)  # Green
+                ear = right_ear
+                shoulder = right_shoulder
 
-            cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-            cv2.putText(frame, f"Shoulder Angle: {shoulder_angle:.1f}/{shoulder_threshold:.1f}", (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
-            cv2.putText(frame, f"Neck Angle: {neck_angle:.1f}/{neck_threshold:.1f}", (10, 90),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+            vertical_point = (shoulder[0], shoulder[1] - 100)  # Point above the shoulder
+            neck_angle = calculate_angle(ear, shoulder, vertical_point)
+
+            # Calibration for side view
+            if not is_calibrated and calibration_frames < 30:
+                calibration_neck_angles.append(neck_angle)
+                calibration_frames += 1
+                cv2.putText(frame, f"Calibrating... {calibration_frames}/30", (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
+            elif not is_calibrated:
+                neck_threshold = np.mean(calibration_neck_angles) - (np.std(calibration_neck_angles) * 1.5)  # Adaptive threshold
+                is_calibrated = True
+                print(f"Calibration complete. Neck threshold: {neck_threshold:.1f}")
+
+            # Draw angles and give feedback
+            draw_angle(frame, ear, shoulder, vertical_point, neck_angle, (0, 255, 0))
+
+            # Feedback for side view
+            if is_calibrated:
+                current_time = time.time()
+                if neck_angle < neck_threshold:
+                    status = "Poor Posture"
+                    color = (0, 0, 255)  # Red
+                    if current_time - last_alert_time > alert_cooldown:
+                        print("Poor posture detected! Please adjust your posture.")
+                        if os.path.exists(sound_file):
+                            playsound(sound_file)
+                        last_alert_time = current_time
+                else:
+                    status = "Good Posture"
+                    color = (0, 255, 0)  # Green
+
+                cv2.putText(frame, status, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+                cv2.putText(frame, f"Neck Angle: {neck_angle:.1f}/{neck_threshold:.1f}", (10, 60),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
 
     else:
         cv2.putText(frame, "No person detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
